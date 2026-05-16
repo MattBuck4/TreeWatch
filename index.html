@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TreeWatch Melbourne — Arborist Incident Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2330;--border:#2a3341;
+  --text:#e6edf3;--muted:#7d8590;--faint:#3d444e;
+  --red:#ff4d4f;--amber:#f0883e;--green:#3fb950;--blue:#58a6ff;
+  --red-bg:#1f0e0e;--amber-bg:#1f1508;--green-bg:#0d1f0f;--blue-bg:#0d1926;
+  --font-head:'Syne',sans-serif;--font-mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font-head);min-height:100vh;overflow-x:hidden}
+.app{display:grid;grid-template-rows:auto auto 1fr;height:100vh}
+
+/* TOP BAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--bg2)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:28px;height:28px;background:var(--red);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.logo-text{font-size:15px;font-weight:700;letter-spacing:-0.3px}
+.logo-sub{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-top:1px}
+.topbar-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.live-badge{display:flex;align-items:center;gap:6px;font-size:11px;font-family:var(--font-mono);color:var(--green);padding:4px 10px;border:1px solid #1a3d22;border-radius:4px;background:var(--green-bg)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.last-update{font-size:11px;font-family:var(--font-mono);color:var(--muted)}
+.filter-btn{font-size:11px;font-family:var(--font-mono);padding:4px 10px;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:4px;cursor:pointer;transition:all .15s}
+.filter-btn.active,.filter-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-bg)}
+.filter-btn.f-ses.active{border-color:var(--red);color:var(--red);background:var(--red-bg)}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.metric{background:var(--bg2);padding:12px 16px}
+.metric-label{font-size:10px;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.metric-val{font-size:24px;font-weight:700;line-height:1}
+.metric-sub{font-size:10px;color:var(--muted);margin-top:3px;font-family:var(--font-mono)}
+.val-red{color:var(--red)}.val-amber{color:var(--amber)}.val-green{color:var(--green)}.val-blue{color:var(--blue)}
+
+/* MAIN */
+.main{display:grid;grid-template-columns:1fr 340px;overflow:hidden}
+
+/* MAP */
+.map-panel{position:relative;background:#111820;overflow:hidden;border-right:1px solid var(--border)}
+.map-svg{width:100%;height:100%}
+.suburb-label{font-family:'DM Mono',monospace;font-size:8px;fill:#3a4a5a}
+.incident-pin{cursor:pointer}
+.pin-ring{animation:ring-pulse 2.5s infinite}
+@keyframes ring-pulse{0%{r:10;opacity:0.7}50%{r:16;opacity:0}100%{r:10;opacity:0.7}}
+.map-info{position:absolute;top:12px;right:12px;background:rgba(13,17,23,0.95);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:11px;font-family:var(--font-mono);max-width:220px;display:none;z-index:10}
+.map-info.show{display:block}
+.info-suburb{font-size:14px;font-weight:700;font-family:var(--font-head);color:var(--text);margin-bottom:4px}
+.info-desc{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5}
+.info-row{display:flex;justify-content:space-between;gap:10px}
+.info-meta{font-size:10px;color:var(--faint)}
+.map-overlay{position:absolute;bottom:12px;left:12px;pointer-events:none}
+.legend{background:rgba(13,17,23,0.9);border:1px solid var(--border);border-radius:6px;padding:10px 12px}
+.legend-title{font-size:9px;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:10px;font-family:var(--font-mono);color:var(--muted)}
+.legend-row:last-child{margin-bottom:0}
+.l-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* SIDEBAR */
+.sidebar{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+.source-bar{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center;background:var(--bg2);flex-wrap:wrap}
+.source-bar-label{font-size:9px;font-family:var(--font-mono);color:var(--faint);text-transform:uppercase;letter-spacing:.5px}
+.feed-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg2)}
+.tab{flex:1;padding:8px;font-size:11px;font-family:var(--font-mono);color:var(--muted);border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.feed-list{overflow-y:auto;flex:1}
+.feed-item{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.feed-item:hover{background:var(--bg2)}
+.feed-item.selected{background:var(--bg3);border-left:2px solid var(--blue)}
+.fi-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.fi-source{font-size:9px;font-family:var(--font-mono);font-weight:500;padding:2px 6px;border-radius:3px}
+.src-ses{background:var(--red-bg);color:var(--red);border:1px solid #3d1010}
+.src-social{background:var(--blue-bg);color:var(--blue);border:1px solid #0d2540}
+.src-both{background:var(--amber-bg);color:var(--amber);border:1px solid #3d2708}
+.fi-time{font-size:9px;font-family:var(--font-mono);color:var(--faint)}
+.fi-text{font-size:12px;line-height:1.4;color:var(--text);margin-bottom:5px}
+.fi-footer{display:flex;justify-content:space-between;align-items:center}
+.fi-loc{font-size:10px;font-family:var(--font-mono);color:var(--muted)}
+.priority-pill{font-size:9px;font-family:var(--font-mono);padding:2px 7px;border-radius:3px;font-weight:500}
+.pri-high{background:var(--red-bg);color:var(--red);border:1px solid #3d1010}
+.pri-med{background:var(--amber-bg);color:var(--amber);border:1px solid #3d2708}
+.pri-low{background:var(--green-bg);color:var(--green);border:1px solid #0d3017}
+.new-badge{font-size:8px;font-family:var(--font-mono);background:var(--red);color:#fff;padding:1px 5px;border-radius:3px;margin-left:5px;animation:flash .8s 3}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:0}}
+.empty-state{padding:40px 20px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:11px;line-height:1.6}
+.api-status{font-size:10px;font-family:var(--font-mono);padding:3px 8px;border-radius:3px}
+.api-live{color:var(--green);background:var(--green-bg);border:1px solid #1a3d22}
+.api-demo{color:var(--amber);background:var(--amber-bg);border:1px solid #3d2708}
+
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">🌳</div>
+    <div>
+      <div class="logo-text">TreeWatch Melbourne</div>
+      <div class="logo-sub">Arborist incident dashboard</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="api-status" id="apiStatus">● Demo mode</span>
+    <button class="filter-btn f-all active" onclick="setFilter('all',this)">All sources</button>
+    <button class="filter-btn f-ses" onclick="setFilter('ses',this)">SES only</button>
+    <button class="filter-btn f-social" onclick="setFilter('social',this)">Social only</button>
+    <div class="live-badge"><div class="live-dot"></div>Live</div>
+    <div class="last-update" id="lastUpdate">Loading...</div>
+  </div>
+</div>
+
+<div class="metrics">
+  <div class="metric"><div class="metric-label">Active incidents</div><div class="metric-val val-red" id="mTotal">0</div><div class="metric-sub">Last 24 hrs</div></div>
+  <div class="metric"><div class="metric-label">SES confirmed</div><div class="metric-val val-amber" id="mSes">0</div><div class="metric-sub">Official reports</div></div>
+  <div class="metric"><div class="metric-label">Social reports</div><div class="metric-val val-blue" id="mSocial">0</div><div class="metric-sub">Unverified</div></div>
+  <div class="metric"><div class="metric-label">High priority</div><div class="metric-val val-red" id="mHigh">0</div><div class="metric-sub">Immediate risk</div></div>
+  <div class="metric"><div class="metric-label">Corroborated</div><div class="metric-val val-green" id="mBoth">0</div><div class="metric-sub">SES + social</div></div>
+</div>
+
+<div class="main">
+  <div class="map-panel">
+    <svg class="map-svg" viewBox="0 0 640 420" id="mapSvg">
+      <defs>
+        <radialGradient id="bayGrad" cx="50%" cy="80%" r="60%">
+          <stop offset="0%" stop-color="#0d2035" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#0a1018" stop-opacity="0.3"/>
+        </radialGradient>
+      </defs>
+      <rect width="640" height="420" fill="#0a1018"/>
+      <ellipse cx="300" cy="460" rx="260" ry="120" fill="url(#bayGrad)"/>
+      <!-- Major road grid -->
+      <path d="M0 200 Q160 195 320 200 Q480 205 640 200" stroke="#1a2535" stroke-width="6" fill="none"/>
+      <path d="M320 0 Q318 100 320 200 Q322 300 320 420" stroke="#1a2535" stroke-width="6" fill="none"/>
+      <path d="M0 280 Q160 275 280 270 Q400 265 640 260" stroke="#1a2535" stroke-width="5" fill="none"/>
+      <path d="M140 0 Q145 100 150 200 Q155 300 160 420" stroke="#1a2535" stroke-width="4" fill="none"/>
+      <path d="M480 0 Q482 100 480 200 Q478 300 480 420" stroke="#1a2535" stroke-width="4" fill="none"/>
+      <path d="M0 120 Q200 115 400 120 Q520 123 640 120" stroke="#1a2535" stroke-width="3" fill="none"/>
+      <path d="M0 340 Q200 338 400 340 Q520 341 640 340" stroke="#1a2535" stroke-width="3" fill="none"/>
+      <path d="M240 0 Q242 100 240 200 Q238 300 240 420" stroke="#1a2535" stroke-width="3" fill="none"/>
+      <!-- Yarra River -->
+      <path d="M60 185 Q140 188 200 192 Q260 197 320 200 Q390 204 450 212 Q520 222 580 238" stroke="#0d2535" stroke-width="5" fill="none"/>
+      <!-- Suburb labels -->
+      <text x="72" y="92" class="suburb-label">ESSENDON</text>
+      <text x="210" y="72" class="suburb-label">PRESTON</text>
+      <text x="370" y="92" class="suburb-label">HEIDELBERG</text>
+      <text x="492" y="138" class="suburb-label">BOX HILL</text>
+      <text x="52" y="192" class="suburb-label">FOOTSCRAY</text>
+      <text x="162" y="155" class="suburb-label">FITZROY N</text>
+      <text x="290" y="152" class="suburb-label">COLLINGWOOD</text>
+      <text x="375" y="172" class="suburb-label">HAWTHORN</text>
+      <text x="478" y="222" class="suburb-label">OAKLEIGH</text>
+      <text x="42" y="292" class="suburb-label">WILLIAMSTOWN</text>
+      <text x="162" y="285" class="suburb-label">SOUTH MELB</text>
+      <text x="278" y="258" class="suburb-label">RICHMOND</text>
+      <text x="370" y="298" class="suburb-label">GLEN WAVERLEY</text>
+      <text x="108" y="352" class="suburb-label">ST KILDA</text>
+      <text x="228" y="358" class="suburb-label">BRIGHTON</text>
+      <text x="162" y="138" class="suburb-label">NORTHCOTE</text>
+      <text x="192" y="92" class="suburb-label">COBURG</text>
+      <text x="478" y="138" class="suburb-label">DONCASTER</text>
+      <!-- CBD box -->
+      <rect x="280" y="202" width="40" height="20" rx="3" fill="#1a2535" opacity="0.8"/>
+      <text x="300" y="215" text-anchor="middle" font-family="'DM Mono',monospace" font-size="8" fill="#4a6080" letter-spacing="0.5">CBD</text>
+      <!-- Pins layer -->
+      <g id="pinsLayer"></g>
+    </svg>
+    <div class="map-info" id="mapInfo">
+      <div class="info-suburb" id="infoSuburb"></div>
+      <div class="info-desc" id="infoDesc"></div>
+      <div class="info-row">
+        <div class="info-meta" id="infoSource"></div>
+        <div class="info-meta" id="infoTime"></div>
+      </div>
+    </div>
+    <div class="map-overlay">
+      <div class="legend">
+        <div class="legend-title">Source</div>
+        <div class="legend-row"><div class="l-dot" style="background:#ff4d4f"></div>SES confirmed</div>
+        <div class="legend-row"><div class="l-dot" style="background:#58a6ff"></div>Social media</div>
+        <div class="legend-row"><div class="l-dot" style="background:#f0883e"></div>Both sources</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="source-bar">
+      <span class="source-bar-label">Sources:</span>
+      <span class="fi-source src-ses">VicEmergency / SES</span>
+      <span class="fi-source src-social">Twitter/X</span>
+    </div>
+    <div class="feed-tabs">
+      <button class="tab active" onclick="setTab('all',this)">All (<span id="tabAllCount">0</span>)</button>
+      <button class="tab" onclick="setTab('high',this)">High (<span id="tabHighCount">0</span>)</button>
+      <button class="tab" onclick="setTab('ses',this)">SES (<span id="tabSesCount">0</span>)</button>
+    </div>
+    <div class="feed-list" id="feedList"></div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── CONFIG ──
+// Once your Railway API is live, replace this with your URL:
+// const API_URL = 'https://your-api.railway.app/incidents';
+const API_URL = null; // Set to null to use demo data
+
+// ── Suburb map coordinates (SVG 640x420 space) ──
+const SUBURBS = {
+  'Fitzroy North':{x:210,y:152},'Preston':{x:252,y:88},'Richmond':{x:328,y:242},
+  'Box Hill':{x:508,y:182},'Footscray':{x:92,y:212},'St Kilda':{x:162,y:328},
+  'Oakleigh':{x:488,y:278},'Hawthorn':{x:388,y:212},'Essendon':{x:122,y:118},
+  'Heidelberg':{x:418,y:118},'Collingwood':{x:318,y:192},'South Melbourne':{x:248,y:282},
+  'Williamstown':{x:88,y:318},'Glen Waverley':{x:528,y:288},'Brighton':{x:268,y:352},
+  'Northcote':{x:252,y:138},'Coburg':{x:198,y:92},'Doncaster':{x:488,y:138},
+  'Malvern':{x:358,y:292},'Moonee Ponds':{x:162,y:162},'Prahran':{x:318,y:272},
+  'Kew':{x:418,y:168},'Brunswick':{x:228,y:118},'Camberwell':{x:428,y:242},
+};
+
+// ── Demo incidents (used when API_URL is null) ──
+const DEMO_INCIDENTS = [
+  {id:1,type:'ses',suburb:'Richmond',desc:'Large tree on car — Swan St',detail:'Eucalyptus regnans approx 18m, root failure, crushing parked vehicle.',priority:'high',ago:18,keywords:['car']},
+  {id:2,type:'ses',suburb:'Fitzroy North',desc:'Tree on powerline — Roseneath St',detail:'Corymbia citriodora branch across low-voltage line. Energex notified.',priority:'high',ago:43,keywords:['powerline']},
+  {id:3,type:'social',suburb:'Footscray',desc:'"Branch blocking Barkly St near the school — traffic backed up"',detail:'Multiple tweets geotagged near Barkly St. Likely storm damage.',priority:'high',ago:31,keywords:['road']},
+  {id:4,type:'social',suburb:'Preston',desc:'"Huge gum came down in our street — #vicstorm"',detail:'Twitter report, no official confirmation yet.',priority:'med',ago:65,keywords:[]},
+  {id:5,type:'ses',suburb:'Box Hill',desc:'Tree blocking driveway — Whitehorse Rd',detail:'Melaleuca approx 8m fell across residential driveway.',priority:'med',ago:130,keywords:[]},
+  {id:6,type:'both',suburb:'Hawthorn',desc:'Large tree on bike path — Yarra Trail',detail:'Confirmed SES + 4 social reports. Platanus uprooted, blocking shared path.',priority:'med',ago:25,keywords:['road']},
+  {id:7,type:'social',suburb:'St Kilda',desc:'"Tree down near the esplanade, joggers going around"',detail:'Single tweet, low engagement. Possibly a branch.',priority:'low',ago:190,keywords:[]},
+  {id:8,type:'ses',suburb:'Oakleigh',desc:'Root system failure, no structural damage',detail:'Liquidambar 12m, clean root failure after recent rain.',priority:'low',ago:310,keywords:[]},
+  {id:9,type:'ses',suburb:'Collingwood',desc:'Tree on roof — Alexandra Pde',detail:'Pinus radiata fell on single-storey home. SES on scene.',priority:'high',ago:8,keywords:['structure'],isNew:true},
+  {id:10,type:'both',suburb:'Moonee Ponds',desc:'Large branch on parked cars — Union Rd',detail:'SES + 2 social reports. Ficus branch across 3 vehicles.',priority:'high',ago:22,keywords:['car'],isNew:true},
+  {id:11,type:'social',suburb:'Northcote',desc:'"Tree on High St — tram stopped #yarratrams"',detail:'Multiple Twitter reports, tram route 86 affected.',priority:'med',ago:55,keywords:['road']},
+  {id:12,type:'ses',suburb:'Essendon',desc:'Storm tree down — residential reserve',detail:'Eucalyptus near playground equipment. SES assessing.',priority:'high',ago:12,keywords:['structure'],isNew:true},
+];
+
+let incidents = [];
+let activeFilter = 'all';
+let activeTab = 'all';
+let selectedId = null;
+let isLiveMode = false;
+
+function timeAgo(mins){
+  if(mins < 1) return 'just now';
+  if(mins < 60) return mins + 'm ago';
+  const h = Math.floor(mins/60), m = mins%60;
+  return h + 'h' + (m ? ' '+m+'m' : '') + ' ago';
+}
+
+function sourceColor(type){return type==='ses'?'#ff4d4f':type==='social'?'#58a6ff':'#f0883e'}
+
+function getFiltered(){
+  return incidents.filter(i=>{
+    if(activeFilter==='ses') return i.type==='ses'||i.type==='both';
+    if(activeFilter==='social') return i.type==='social'||i.type==='both';
+    return true;
+  });
+}
+
+function getTabFiltered(){
+  const f = getFiltered();
+  if(activeTab==='high') return f.filter(i=>i.priority==='high');
+  if(activeTab==='ses') return f.filter(i=>i.type==='ses'||i.type==='both');
+  return f;
+}
+
+function updateMetrics(){
+  const f = getFiltered();
+  document.getElementById('mTotal').textContent = f.length;
+  document.getElementById('mSes').textContent = f.filter(i=>i.type==='ses'||i.type==='both').length;
+  document.getElementById('mSocial').textContent = f.filter(i=>i.type==='social'||i.type==='both').length;
+  document.getElementById('mHigh').textContent = f.filter(i=>i.priority==='high').length;
+  document.getElementById('mBoth').textContent = f.filter(i=>i.type==='both').length;
+  document.getElementById('tabAllCount').textContent = getFiltered().length;
+  document.getElementById('tabHighCount').textContent = getFiltered().filter(i=>i.priority==='high').length;
+  document.getElementById('tabSesCount').textContent = getFiltered().filter(i=>i.type==='ses'||i.type==='both').length;
+}
+
+function renderFeed(){
+  const list = document.getElementById('feedList');
+  const items = getTabFiltered().sort((a,b)=>{
+    const po={high:0,med:1,low:2};
+    return po[a.priority]-po[b.priority]||a.ago-b.ago;
+  });
+  if(!items.length){
+    list.innerHTML='<div class="empty-state">No incidents match current filter.<br>Try changing the source filter above.</div>';
+    return;
+  }
+  list.innerHTML = items.map(i=>{
+    const srcClass = i.type==='ses'?'src-ses':i.type==='social'?'src-social':'src-both';
+    const srcLabel = i.type==='ses'?'SES':i.type==='social'?'Twitter/X':'SES + Social';
+    const priClass = i.priority==='high'?'pri-high':i.priority==='med'?'pri-med':'pri-low';
+    const priLabel = i.priority==='high'?'HIGH':i.priority==='med'?'MED':'LOW';
+    const newBadge = i.isNew?'<span class="new-badge">NEW</span>':'';
+    const sel = selectedId===i.id?'selected':'';
+    return `<div class="feed-item ${sel}" onclick="selectIncident(${i.id})">
+      <div class="fi-header">
+        <span class="fi-source ${srcClass}">${srcLabel}</span>${newBadge}
+        <span class="fi-time">${timeAgo(i.ago)}</span>
+      </div>
+      <div class="fi-text">${i.desc}</div>
+      <div class="fi-footer">
+        <span class="fi-loc">📍 ${i.suburb}</span>
+        <span class="priority-pill ${priClass}">${priLabel}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderMap(){
+  const layer = document.getElementById('pinsLayer');
+  const items = getFiltered();
+  layer.innerHTML = items.map(i=>{
+    const coord = SUBURBS[i.suburb];
+    if(!coord) return '';
+    const col = sourceColor(i.type);
+    const r = i.priority==='high'?8:i.priority==='med'?6:5;
+    const sel = selectedId===i.id;
+    return `<g class="incident-pin" onclick="selectIncident(${i.id})" transform="translate(${coord.x},${coord.y})">
+      ${i.priority==='high'?`<circle r="14" fill="${col}" opacity="0.15" class="pin-ring"/>`:``}
+      <circle r="${r+3}" fill="${col}" opacity="${sel?0.4:0.15}"/>
+      <circle r="${r}" fill="${col}" opacity="${sel?1:0.85}" stroke="#0a1018" stroke-width="${sel?2:1}"/>
+      ${sel?`<circle r="${r+6}" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.5"/>`:``}
+    </g>`;
+  }).join('');
+}
+
+function selectIncident(id){
+  selectedId = (selectedId===id)?null:id;
+  const inc = incidents.find(i=>i.id===id);
+  const info = document.getElementById('mapInfo');
+  if(inc && selectedId){
+    document.getElementById('infoSuburb').textContent = inc.suburb;
+    document.getElementById('infoDesc').textContent = inc.detail || inc.desc;
+    document.getElementById('infoSource').textContent = inc.type==='ses'?'SES confirmed':inc.type==='both'?'SES + Social confirmed':'Social report (unverified)';
+    document.getElementById('infoTime').textContent = timeAgo(inc.ago);
+    info.classList.add('show');
+  } else {
+    info.classList.remove('show');
+  }
+  render();
+}
+
+function render(){
+  renderFeed();
+  renderMap();
+  updateMetrics();
+}
+
+function setFilter(f,btn){
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function setTab(t,btn){
+  activeTab = t;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function updateTimestamp(){
+  const now = new Date();
+  document.getElementById('lastUpdate').textContent = 'Updated ' + now.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── Live API fetch ──
+async function fetchLiveIncidents(){
+  if(!API_URL) return false;
+  try {
+    const res = await fetch(API_URL);
+    if(!res.ok) throw new Error('API error');
+    const data = await res.json();
+    incidents = data.incidents;
+    isLiveMode = true;
+    document.getElementById('apiStatus').textContent = '● Live data';
+    document.getElementById('apiStatus').className = 'api-status api-live';
+    return true;
+  } catch(e) {
+    console.warn('API fetch failed, using demo data:', e);
+    return false;
+  }
+}
+
+// ── Demo mode: simulate new incidents arriving ──
+const EXTRA_DEMO = [
+  {id:100,type:'social',suburb:'Doncaster',desc:'"Tree just came down on Doncaster Rd! #melbstorm"',detail:'Twitter report with photo. Mature Quercus blocking carriageway.',priority:'high',ago:0,keywords:['road'],isNew:true},
+  {id:101,type:'ses',suburb:'Brunswick',desc:'Tree on fence — Bell St residential',detail:'Acacia 7m fallen across dividing fence. Arborist assessment requested.',priority:'low',ago:0,keywords:[],isNew:true},
+  {id:102,type:'both',suburb:'Malvern',desc:'Large Elm down across footpath — High St',detail:'SES + 3 social posts. Ulmus 14m, full root ball exposed.',priority:'med',ago:0,keywords:['road'],isNew:true},
+];
+let demoIdx = 0;
+
+async function init(){
+  const gotLive = await fetchLiveIncidents();
+  if(!gotLive){
+    incidents = [...DEMO_INCIDENTS];
+    document.getElementById('apiStatus').textContent = '● Demo mode';
+    document.getElementById('apiStatus').className = 'api-status api-demo';
+    // Simulate new arrivals every 30s in demo mode
+    setInterval(()=>{
+      if(demoIdx < EXTRA_DEMO.length){
+        const inc = {...EXTRA_DEMO[demoIdx++]};
+        incidents.unshift(inc);
+        setTimeout(()=>{inc.isNew=false;render();}, 6000);
+        render();
+      }
+      incidents.forEach(i=>i.ago++);
+    }, 30000);
+  } else {
+    // Refresh live data every 2 minutes
+    setInterval(async()=>{
+      await fetchLiveIncidents();
+      render();
+      updateTimestamp();
+    }, 120000);
+  }
+  updateTimestamp();
+  render();
+}
+
+setInterval(updateTimestamp, 60000);
+init();
+</script>
+</body>
+</html>
