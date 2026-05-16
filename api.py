@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-VIC_EMERGENCY_FEED = "https://emergency.vic.gov.au/public/osom-feed.json"
+VIC_EMERGENCY_FEED = "https://data.emergency.vic.gov.au/Show?pageId=getIncidentJSON"
 
 TREE_KEYWORDS = [
     "fallen tree", "tree down", "tree fallen",
